@@ -1,0 +1,3 @@
+# Windows 배치 파일은 cmd.exe가 CRLF를 요구한다.
+# LF면 goto/label 점프 시 파싱이 깨져 실행이 실패한다.
+*.bat text eol=crlf
