@@ -237,6 +237,15 @@ button.danger { color: var(--danger); border-color: var(--danger); background: t
 .kb-key:hover { border-color: var(--accent); }
 .kb-gap { flex-basis: 100%; height: 2px; }
 
+/* ── 푸터 (이용약관 안내) ── */
+.page-foot {
+  margin: 0 1.2rem 1rem;
+  text-align: center;
+  font-size: 0.78rem; color: var(--muted);
+}
+.page-foot a { color: inherit; text-decoration: underline; }
+.page-foot a:hover { color: var(--accent); }
+
 /* ── 사전 관리 ── */
 .dict-panel {
   margin: 0 1.2rem 1.2rem;
