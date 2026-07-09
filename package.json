@@ -1,0 +1,14 @@
+{
+  "name": "voicevox-kr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "한국어 텍스트를 가나로 근사 변환해 VOICEVOX로 발음시키는 로컬 도구 (CLI + 웹 UI)",
+  "main": "k2v.js",
+  "scripts": {
+    "test": "node test.js",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

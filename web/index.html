@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>k2v — 한국어 → VOICEVOX</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1 class="brand">k2v <span class="brand-sub">한국어 → VOICEVOX</span></h1>
+  <div class="topbar-controls">
+    <div class="speaker-picker" id="speaker-picker">
+      <span class="speaker-caption">화자</span>
+      <button id="speaker-btn" class="speaker-btn" disabled>
+        <img id="speaker-btn-icon" class="sp-icon hidden" alt="">
+        <span id="speaker-btn-label">엔진 연결 중…</span>
+        <span class="caret">▾</span>
+      </button>
+      <div id="speaker-menu" class="speaker-menu hidden" role="menu"></div>
+      <div id="speaker-submenu" class="speaker-submenu hidden" role="menu"></div>
+    </div>
+    <label class="toggle" title="켜면 모든 외래어를 일본어식으로 발음 (커피→コオヒイ). 단어 하나만 바꾸려면 커피*처럼 * 마커 (3.7 --jp)">
+      <input type="checkbox" id="jp-toggle"> 외래어 일본어식
+    </label>
+    <span class="engine-status" id="engine-status">
+      <span class="dot" id="engine-dot"></span><span id="engine-label">확인 중…</span>
+      <button class="link-btn hidden" id="engine-retry">다시 연결</button>
+    </span>
+  </div>
+</header>
+
+<main class="panels">
+
+  <!-- ① 입력 -->
+  <section class="panel" aria-labelledby="input-heading">
+    <h2 id="input-heading">① 입력</h2>
+    <textarea id="text-input" rows="7" autofocus
+      placeholder="한국어 문장을 입력하세요&#10;영어 단어 · 일본어식 마커(커피*) · 가나 직접 입력 가능"></textarea>
+    <div class="controls">
+      <button id="btn-convert" class="primary">변환</button>
+      <button id="btn-play" disabled>▶ 재생</button>
+      <button id="btn-save" disabled>wav 저장</button>
+    </div>
+    <div class="controls sub">
+      <label class="toggle"><input type="checkbox" id="auto-play"> 자동 재생</label>
+      <button id="btn-hold" class="ghost" disabled>보류 메모</button>
+      <span class="hint">Ctrl+Enter = 변환</span>
+    </div>
+    <div id="hold-form" class="hold-form hidden">
+      <input id="hold-note" placeholder="무엇이 아쉬운지 한 줄 (보류목록.md에 기록)">
+      <button id="hold-save" class="ghost">기록</button>
+    </div>
+  </section>
+
+  <!-- ② 결과 + ③ 가나 편집 -->
+  <section class="panel" aria-labelledby="result-heading">
+    <h2 id="result-heading">② 변환 결과</h2>
+
+    <div id="stale-banner" class="stale-banner hidden">
+      ⚠ 입력 변경됨 — 현재 결과는 마지막 변환 결과입니다
+      <button id="btn-reconvert" class="link-btn">다시 변환</button>
+    </div>
+
+    <div id="result-body" class="result-body">
+      <div class="result-status">
+        <span id="convert-time" class="convert-time"></span>
+        <span id="badges" class="badges"></span>
+      </div>
+      <div id="warnings" class="warnings"></div>
+
+      <div id="words-table" class="words-table">
+        <p class="placeholder">[변환]을 누르면 어절별 발음이 여기 표시됩니다</p>
+      </div>
+
+      <div id="markup-preview" class="markup-preview hidden"></div>
+
+      <h2 class="kana-heading">③ 가나 마크업 편집
+        <span id="markup-dirty" class="dirty-badge hidden">● 미적용</span>
+      </h2>
+      <textarea id="markup-input" rows="3" spellcheck="false"
+        placeholder="변환하면 마크업이 채워집니다 ('=악센트 핵  /=구 분리  <초>=모라 길이)"></textarea>
+      <div class="controls">
+        <button id="btn-play-markup" disabled>편집한 가나로 재생</button>
+        <button id="btn-keyboard" class="ghost">가나 키보드 ▾</button>
+      </div>
+      <div id="kana-keyboard" class="kana-keyboard hidden"></div>
+    </div>
+  </section>
+</main>
+
+<!-- 사전 관리 -->
+<details class="dict-panel" id="dict-panel">
+  <summary>사전 관리</summary>
+  <div class="dict-toolbar">
+    <div class="dict-tabs" id="dict-tabs">
+      <button data-book="main" class="active">dict.json</button>
+      <button data-book="en">dict_en.json</button>
+      <button data-book="jp">dict_jp.json</button>
+    </div>
+    <input id="dict-search" placeholder="🔍 키·값 검색">
+  </div>
+  <div id="dict-list" class="dict-list"></div>
+  <form id="dict-add" class="dict-add">
+    <input id="dict-add-key" placeholder="키 (어절/영단어)">
+    <span>→</span>
+    <input id="dict-add-value" placeholder="값 (한글/가나, '=핵 /=구 <초>=길이)">
+    <button type="submit" class="ghost">+ 추가</button>
+  </form>
+</details>
+
+<!-- 교정 팝오버 -->
+<div id="popover" class="popover hidden" role="dialog" aria-label="발음 교정">
+  <div class="popover-title" id="pop-title"></div>
+  <dl class="popover-compare">
+    <dt>원본 변환</dt><dd id="pop-rule"></dd>
+    <dt id="pop-current-label">현재 사전값</dt><dd id="pop-current"></dd>
+  </dl>
+  <input id="pop-input" placeholder="새 발음" autocomplete="off">
+  <div class="hint">'=악센트 핵 &nbsp; /=구 분리 &nbsp; &lt;초&gt;=모라 길이 (예: ブル&lt;0.02&gt;レッ')</div>
+  <div class="popover-error hidden" id="pop-error"></div>
+  <div class="controls">
+    <button id="pop-save" class="primary">저장 및 재생</button>
+    <button id="pop-delete" class="danger hidden">삭제</button>
+    <button id="pop-cancel" class="ghost">취소</button>
+  </div>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="kana-keyboard.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

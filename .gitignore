@@ -1,0 +1,5 @@
+# 합성 결과물
+*.wav
+
+# Node
+node_modules/
