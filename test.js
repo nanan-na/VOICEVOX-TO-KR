@@ -6,7 +6,7 @@ const { convert } = require('./src/rules');
 const { sentencePlain, sentenceMarkup } = require('./src/accent');
 const { preprocess } = require('./src/numbers');
 const { englishStage } = require('./src/english');
-const { routeOf, valueError, KEY_SHAPE, buildWords } = require('./src/books');
+const { routeOf, valueError, KEY_SHAPE, buildWords, loadBook, saveBook } = require('./src/books');
 const { moraTimes } = require('./server');
 
 // [입력, 기대 가나(핵 제외), 옵션]
@@ -345,6 +345,32 @@ console.log('── 어절 분해 buildWords (Phase 3 — 병기 테이블·교�
   check('분해: 저장처', `${words[0].book}:${words[0].key}`, 'dict.json:블랙');
   const kanaTok = buildWords('カナ', state, {})[0];
   check('분해: 가나 토큰은 교정 불가', String(kanaTok.correctable), 'false');
+}
+
+console.log('── 사전 파일 손상 보호 (loadBook loadError · saveBook 거부/원자적 쓰기) ──');
+{
+  const fs = require('fs');
+  const os = require('os');
+  const pathMod = require('path');
+  const tmpDir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'k2v-test-'));
+  const brokenPath = pathMod.join(tmpDir, 'broken.json');
+  fs.writeFileSync(brokenPath, '{ "키": "값"', 'utf8'); // 닫는 괄호 없는 JSON
+  const broken = loadBook({ id: 'main', file: 'broken.json', path: brokenPath, comment: '테스트' });
+  check('깨진 JSON → loadError 표시', String(!!broken.loadError), 'true');
+  check('깨진 JSON → 빈 사전으로 동작', Object.keys(broken.dict).length, 0);
+  let saveErr = '';
+  try { saveBook(broken); } catch (e) { saveErr = 'throw'; }
+  check('깨진 사전에 저장 시도 → 거부(기존 항목 보호)', saveErr, 'throw');
+  check('거부 후 파일 원본 유지', fs.readFileSync(brokenPath, 'utf8'), '{ "키": "값"');
+
+  const missingPath = pathMod.join(tmpDir, 'missing.json');
+  const fresh = loadBook({ id: 'main', file: 'missing.json', path: missingPath, comment: '테스트' });
+  check('없는 파일 → loadError 없음 (새 사전)', String(fresh.loadError), 'null');
+  fresh.raw['안녕'] = 'アンニョン';
+  saveBook(fresh);
+  check('정상 저장 → 파일에 반영', JSON.parse(fs.readFileSync(missingPath, 'utf8'))['안녕'], 'アンニョン');
+  check('정상 저장 → 임시 파일 잔존 없음', String(fs.existsSync(missingPath + '.tmp')), 'false');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
 console.log('── 어절 타이밍 moraTimes (server.js — pause_mora는 시간만, 인덱스 없음) ──');

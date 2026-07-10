@@ -29,14 +29,20 @@ function activeDict(raw) {
   return d;
 }
 
+// 파일 없음(ENOENT)은 정상(새 사전). 파스 실패는 loadError로 표시 — 이 상태로 저장하면
+// 기존 항목 전체가 빈 사전으로 덮여 사라지므로, saveBook이 저장을 거부하는 근거가 된다.
 function loadBook(spec) {
   let raw;
+  let loadError = null;
   try {
     raw = JSON.parse(fs.readFileSync(spec.path, 'utf8'));
-  } catch {
+  } catch (e) {
     raw = { _comment: spec.comment };
+    if (e.code !== 'ENOENT') {
+      loadError = `${spec.file}을 읽지 못했습니다 (${e.message}) — 파일을 고치기 전에는 빈 사전으로 동작하며 저장이 막힙니다`;
+    }
   }
-  return { ...spec, raw, dict: activeDict(raw) };
+  return { ...spec, raw, dict: activeDict(raw), loadError };
 }
 
 // 3권을 한 번에 로드 — routeOf/convert 옵션 주입에 쓰는 state
@@ -44,8 +50,12 @@ function loadBooks() {
   return { main: loadBook(BOOKS.main), en: loadBook(BOOKS.en), jp: loadBook(BOOKS.jp) };
 }
 
+// 원자적 쓰기(tmp→rename): 쓰다 죽어도 원본이 반쪽짜리 JSON으로 깨지지 않게
 function saveBook(book) {
-  fs.writeFileSync(book.path, JSON.stringify(book.raw, null, 2) + '\n', 'utf8');
+  if (book.loadError) throw new Error(book.loadError);
+  const tmp = `${book.path}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(book.raw, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmp, book.path);
   book.dict = activeDict(book.raw);
 }
 

@@ -119,6 +119,11 @@ async function apiSpeakerIcons(engineUrl) {
   speakerIconCache = { icons };
   return { code: 200, data: speakerIconCache };
 }
+// 사전 파일이 깨져 있으면(loadBook loadError) 경고로 노출 — 조용한 빈 사전 동작 방지
+function bookLoadWarnings(state) {
+  return Object.values(state).map((b) => b.loadError).filter(Boolean);
+}
+
 async function apiConvert(body) {
   const text = String(body.text ?? '').trim();
   if (!text) return { code: 400, data: { error: '변환할 텍스트가 없습니다' } };
@@ -130,7 +135,7 @@ async function apiConvert(body) {
     data: {
       sentences: serializeSentences(conv.sentences),
       words: buildWords(text, state, opt),
-      warnings: conv.warnings,
+      warnings: [...bookLoadWarnings(state), ...conv.warnings],
       dictHits: conv.dictHits,
       enHits: conv.enHits,
     },
@@ -178,7 +183,7 @@ async function apiSynth(body, engineUrl) {
     data: {
       audio: wav.toString('base64'),
       timings,
-      warnings: conv.warnings,
+      warnings: [...bookLoadWarnings(state), ...conv.warnings],
     },
   };
 }
@@ -243,9 +248,20 @@ function serveStatic(res, urlPath) {
 }
 
 // ── 라우터 ────────────────────────────────────────────────────────────
-async function handle(req, res, opt) {
-  const { pathname } = new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`);
+// URL 해석 실패(비정상 Host 헤더 등)는 null — 요청 하나 때문에 프로세스가 죽지 않도록
+function requestPath(req) {
   try {
+    return new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`).pathname;
+  } catch {
+    try { return new URL(req.url, 'http://127.0.0.1').pathname; }
+    catch { return null; }
+  }
+}
+
+async function handle(req, res, opt) {
+  const pathname = requestPath(req);
+  try {
+    if (pathname === null) return sendJson(res, 400, { error: '잘못된 요청 URL' });
     if (pathname.startsWith('/api/')) {
       let result;
       if (req.method === 'GET' && pathname === '/api/speakers') {
@@ -285,7 +301,14 @@ async function handle(req, res, opt) {
 
 function main() {
   const opt = parseArgs(process.argv.slice(2));
-  const server = http.createServer((req, res) => { handle(req, res, opt); });
+  if (!Number.isInteger(opt.port) || opt.port < 1 || opt.port > 65535) {
+    console.error(`--port 값이 올바르지 않습니다: ${process.argv.includes('--port') ? opt.port : ''} (1~65535)`);
+    process.exit(1);
+  }
+  const server = http.createServer((req, res) => {
+    // handle 내부 try가 대부분 잡지만, 응답 중 소켓 단절 등 잔여 예외로 프로세스가 죽지 않도록
+    handle(req, res, opt).catch(() => { try { res.destroy(); } catch { /* 이미 닫힘 */ } });
+  });
   // 로컬 전용 도구 — 루프백에만 바인딩
   server.listen(opt.port, '127.0.0.1', () => {
     console.log(`k2v 웹 UI: http://127.0.0.1:${opt.port} (엔진: ${opt.url})`);

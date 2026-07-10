@@ -331,7 +331,12 @@
       return false;
     }
     audio.el.currentTime = 0;
-    audio.el.play();
+    try {
+      await audio.el.play(); // 브라우저 autoplay 차단 등으로 거부될 수 있음
+    } catch (e) {
+      toast(`재생 실패: ${e.message}`, true);
+      return false;
+    }
     if (audio.highlight && state.spanToWord) startHighlight(audio);
     return true;
   }
